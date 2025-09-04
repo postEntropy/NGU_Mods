@@ -13,10 +13,14 @@ public class SearchITOPODPerks : BaseUnityPlugin
     public string _searchString = "";
     public bool _visible = false;
     public Rect _windowRect = new Rect(400f, 50f, 220f, 60f);
-
     public ItopodPerkController perkController;
 
+    private const int ID_DO_MENU_ITOPOD = 41;
     private static Character _character;
+
+    private GUIStyle _windowStyle;
+    private bool _setFocus = false;
+
     public static Character GameCharacter
     {
         get
@@ -30,6 +34,14 @@ public class SearchITOPODPerks : BaseUnityPlugin
         }
     }
 
+    private Texture2D CreateSolidColorTexture(Color color)
+    {
+        Texture2D texture = new Texture2D(1, 1);
+        texture.SetPixel(0, 0, color);
+        texture.Apply();
+        return texture;
+    }
+
     public void Awake()
     {
         Instance = this;
@@ -41,21 +53,26 @@ public class SearchITOPODPerks : BaseUnityPlugin
     public void Update()
     {
         Character currentChar = GameCharacter;
-        const int ID_DO_MENU_ITOPOD = 41;
         bool isItopodScreenActive = currentChar != null && currentChar.menuID == ID_DO_MENU_ITOPOD;
 
         if (Input.GetKeyDown(KeyCode.S))
         {
             if (isItopodScreenActive)
             {
-                this.perkController = UnityEngine.Object.FindObjectOfType<ItopodPerkController>();
                 _visible = !_visible;
+                if (_visible)
+                {
+                    this.perkController = UnityEngine.Object.FindObjectOfType<ItopodPerkController>();
+                    _setFocus = true;
+                }
             }
         }
 
         if (_visible && !isItopodScreenActive)
         {
             _visible = false;
+            _searchString = "";
+            RefreshPerks();
         }
     }
 
@@ -63,37 +80,47 @@ public class SearchITOPODPerks : BaseUnityPlugin
     {
         if (!_visible) return;
 
-        GUI.backgroundColor = new Color(0f, 0f, 0f, 0.9f);
-        _windowRect = new Rect(_windowRect.x, _windowRect.y, 350f, 0f);
+        var sf = GameCharacter.tooltip.canvas.scaleFactor;
+        _windowRect = new Rect(724 * sf, 105 * sf, 200 * sf, 20 * sf);
 
-        _windowRect = GUILayout.Window(GetHashCode(), _windowRect, id =>
+        if (_windowStyle == null)
         {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Search:", GUILayout.Width(50f));
+            _windowStyle = new GUIStyle("box");
+            _windowStyle.normal.background = CreateSolidColorTexture(new Color(0.1f, 0.1f, 0.1f, 0.95f));
+            _windowStyle.padding = new RectOffset(5, 5, 5, 5);
+        }
 
-            GUI.SetNextControlName("SearchField");
-            string newSearch = GUILayout.TextField(_searchString);
+        string newSearch;
+        GUILayout.BeginArea(_windowRect, _windowStyle);
+
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Search:", GUILayout.Width(50f));
+
+        GUI.SetNextControlName("SearchField");
+        newSearch = GUILayout.TextField(_searchString);
+
+        if (_setFocus)
+        {
             GUI.FocusControl("SearchField");
+            _setFocus = false;
+        }
 
-            if (GUILayout.Button("X", GUILayout.Width(25f)))
-            {
-                _visible = false;
-                _searchString = "";
-                RefreshPerks();
-                return;
-            }
+        if (GUILayout.Button("X", GUILayout.Width(25f)))
+        {
+            _visible = false;
+            _searchString = "";
+            RefreshPerks();
+            return;
+        }
+        GUILayout.EndHorizontal();
 
-            GUILayout.EndHorizontal();
+        GUILayout.EndArea();
 
-            if (GUI.changed && newSearch != _searchString)
-            {
-                _searchString = newSearch.ToLowerInvariant().Trim();
-                RefreshPerks();
-            }
-
-            GUI.DragWindow();
-
-        }, "ITOPOD Perks Search");
+        if (newSearch != _searchString)
+        {
+            _searchString = newSearch.ToLowerInvariant().Trim();
+            RefreshPerks();
+        }
     }
 
     public void RefreshPerks()
@@ -105,18 +132,21 @@ public class SearchITOPODPerks : BaseUnityPlugin
             foreach (var uiController in perkController.perkControllers)
             {
                 int perkId = uiController.id;
-                string name = perkController.perkName[perkId].ToLowerInvariant().Trim();
-                bool isMatch = name.Contains(_searchString);
+                if (perkId >= 0 && perkId < perkController.perkName.Count)
+                {
+                    string name = perkController.perkName[perkId].ToLowerInvariant().Trim();
+                    bool isMatch = name.Contains(_searchString);
 
-                if (isMatch)
-                {
-                    uiController.itemGraphic.color = Color.white;
-                    uiController.itemBorder.color = Color.green;
-                }
-                else
-                {
-                    uiController.itemGraphic.color = Color.grey;
-                    uiController.itemBorder.color = Color.grey;
+                    if (isMatch)
+                    {
+                        uiController.itemGraphic.color = Color.white;
+                        uiController.itemBorder.color = Color.green;
+                    }
+                    else
+                    {
+                        uiController.itemGraphic.color = Color.grey;
+                        uiController.itemBorder.color = Color.grey;
+                    }
                 }
             }
         }
